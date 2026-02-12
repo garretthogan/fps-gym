@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
+import { RGBELoader } from 'three/examples/jsm/loaders/RGBELoader.js';
 
 // --- Capsule collision: two spheres (bottom + top) vs AABB ---
 function closestPointAABB(point, boxMin, boxMax) {
@@ -368,11 +369,25 @@ export function initGame(container) {
   renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
   renderer.shadowMap.enabled = true;
   renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+  renderer.toneMapping = THREE.ACESFilmicToneMapping;
+  renderer.toneMappingExposure = 1;
+  renderer.outputColorSpace = THREE.SRGBColorSpace;
   container.appendChild(renderer.domElement);
 
-  const ambient = new THREE.AmbientLight(0x404060, 0.6);
-  scene.add(ambient);
-  const dirLight = new THREE.DirectionalLight(0xffffff, 0.9);
+  const pmremGenerator = new THREE.PMREMGenerator(renderer);
+  pmremGenerator.compileEquirectangularShader();
+  new RGBELoader()
+    .setPath(import.meta.env.BASE_URL)
+    .load('hdri/qwantani_dusk_1_puresky_8k.hdr', (texture) => {
+      texture.mapping = THREE.EquirectangularReflectionMapping;
+      const envMap = pmremGenerator.fromEquirectangular(texture).texture;
+      scene.environment = envMap;
+      scene.background = envMap;
+      texture.dispose();
+      pmremGenerator.dispose();
+    }, undefined, (err) => console.error('HDRI load failed:', err));
+
+  const dirLight = new THREE.DirectionalLight(0xffaa88, 0.4);
   dirLight.position.set(10, 20, 10);
   dirLight.castShadow = true;
   dirLight.shadow.mapSize.set(2048, 2048);
@@ -491,8 +506,8 @@ export function initGame(container) {
     </label>
     <label>
       <span>Light intensity</span>
-      <input type="range" min="0" max="3" value="0.9" step="0.1" data-binding="lightIntensity" />
-      <output>0.9</output>
+      <input type="range" min="0" max="2" value="0.4" step="0.1" data-binding="lightIntensity" />
+      <output>0.4</output>
     </label>
     <label>
       <span>Light X</span>
