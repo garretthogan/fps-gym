@@ -510,7 +510,7 @@ export function initGame(container) {
       <output>10</output>
     </label>
     <label class="maze-load-label">
-      <span>Load maze</span>
+      <span>Load level</span>
       <input type="file" accept=".glb" multiple data-binding="maze" />
     </label>
     <button type="button" class="fullscreen-btn" data-binding="fullscreen">Full screen</button>
