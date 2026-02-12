@@ -927,13 +927,23 @@ export function initGame(container) {
     camera.rotation.z = cameraRoll;
   }
 
+  const fpsEl = document.createElement('div');
+  fpsEl.className = 'fps-counter';
+  fpsEl.textContent = '— fps';
+  container.appendChild(fpsEl);
+
   let lastFrameTime = 0;
   let accumulator = 0;
+  let fpsSmooth = 60;
   function animate(time) {
     requestAnimationFrame(animate);
     const rawDelta = lastFrameTime ? time - lastFrameTime : 0;
     const dt = rawDelta === 0 ? FIXED_DT : Math.min(0.05, rawDelta > 1 ? rawDelta / 1000 : rawDelta);
     lastFrameTime = time;
+    if (rawDelta > 0) {
+      fpsSmooth += (1000 / rawDelta - fpsSmooth) * 0.15;
+      fpsEl.textContent = Math.round(fpsSmooth) + ' fps';
+    }
     pollGamepad(dt); // run every frame so gamepad works and "press A to start" works when not locked
     if (devControllerEl) {
       const gamepads = navigator.getGamepads ? navigator.getGamepads() : [];
