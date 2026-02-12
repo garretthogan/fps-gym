@@ -180,32 +180,48 @@ function loadMazeGlb(source, scene, colliders) {
   }
 }
 
-// --- Player state and capsule ---
-const CAPSULE_RADIUS = 0.4;
-const CAPSULE_HEIGHT = 1.8;
-const EYE_HEIGHT = 1.6;
+// --- Player state and capsule (dimensions in cm, speeds in cm/s; converted to meters for physics) ---
+const CM = 0.01; // 1 meter = 100 cm
+const EYE_HEIGHT_CM = 170;
+const CAPSULE_RADIUS_CM = 36;
+const CAPSULE_HEIGHT_CM = EYE_HEIGHT_CM + 10; // ~10 cm taller than eye height
+const EYE_HEIGHT = EYE_HEIGHT_CM * CM;
+const CAPSULE_RADIUS = CAPSULE_RADIUS_CM * CM;
+const CAPSULE_HEIGHT = CAPSULE_HEIGHT_CM * CM;
 const CROUCH_MULTIPLIER = 0.5;
-const GRAVITY = 24;
-const JUMP_VELOCITY = 8;
-const MOVE_SPEED = 14; // default; overridden by Move speed slider
+const GRAVITY_CM_S2 = 2400; // cm/s² → m/s²
+const GRAVITY = GRAVITY_CM_S2 * CM;
+const JUMP_VELOCITY_CM_S = 800;
+const JUMP_VELOCITY = JUMP_VELOCITY_CM_S * CM;
+const MOVE_SPEED_CM_S = 800; // default; overridden by Move speed slider
+const MOVE_SPEED = MOVE_SPEED_CM_S * CM;
 const WALL_RUN_GRAVITY_MULT = 0.25;
-const WALL_RUN_SPEED = 16;
+const WALL_RUN_SPEED_CM_S = 1600;
+const WALL_RUN_SPEED = WALL_RUN_SPEED_CM_S * CM;
 const WALL_RUN_SPEED_EASE = 10; // exponential easing rate toward surf speed cap
-const INITIAL_SURF_SPEED = 6;   // fixed along-wall speed when mounting so arc is consistent
-const WALL_JUMP_UP = 9;
-const WALL_JUMP_OUT = 10;
-const WALL_LATCH_JUMP = 2.5;
-const WALL_RUN_LIFT_ACCEL = 12;
-const WALL_RUN_ALONG_THRUST = 20;
+const INITIAL_SURF_SPEED_CM_S = 600;
+const INITIAL_SURF_SPEED = INITIAL_SURF_SPEED_CM_S * CM;
+const WALL_JUMP_UP_CM_S = 900;
+const WALL_JUMP_UP = WALL_JUMP_UP_CM_S * CM;
+const WALL_JUMP_OUT_CM_S = 1000;
+const WALL_JUMP_OUT = WALL_JUMP_OUT_CM_S * CM;
+const WALL_LATCH_JUMP_CM_S = 250;
+const WALL_LATCH_JUMP = WALL_LATCH_JUMP_CM_S * CM;
+const WALL_RUN_LIFT_ACCEL_CM_S2 = 400; // upward thrust while surfing (cm/s²)
+const WALL_RUN_LIFT_ACCEL = WALL_RUN_LIFT_ACCEL_CM_S2 * CM;
+const WALL_RUN_ALONG_THRUST_CM_S2 = 1000; // forward thrust while surfing (cm/s²)
+const WALL_RUN_ALONG_THRUST = WALL_RUN_ALONG_THRUST_CM_S2 * CM;
 const WALL_RUN_MOUNT_DELAY = 0.28;
 const WALL_RUN_VERTICAL_THRUST_DURATION = 1.4;
 const WALL_RUN_FORWARD_THRUST_DURATION = 0.85;  // forward (along-wall) thrust tapers to 0 over this time
 const WALL_RUN_MOUNT_BOOST_DURATION = 0.2;  // extra vertical thrust at start so fall-into-wall feels like jump-in
-const WALL_RUN_MOUNT_LIFT_BOOST = 18;
+const WALL_RUN_MOUNT_LIFT_BOOST_CM_S2 = 1800; // cm/s²
+const WALL_RUN_MOUNT_LIFT_BOOST = WALL_RUN_MOUNT_LIFT_BOOST_CM_S2 * CM;
 const WALL_RUN_NEAR_EPSILON = 0.28;
 const WALL_RUN_ROLL_DEG = 18;
 const WALL_RUN_ROLL_LERP = 10;
 const MOUSE_SENSITIVITY = 0.002;
+const DEFAULT_LOOK_SENSITIVITY = 0.3; // slider default (multiplier)
 const FIXED_DT = 1 / 60; // fixed timestep so movement is identical across platforms
 const MAX_ACCUMULATOR = 0.1; // cap to avoid spiral of death
 const WALL_RUN_PLANE_TOLERANCE = 0.5; // still on wall if within this distance of wall plane (look-independent)
@@ -430,10 +446,10 @@ export function initGame(container) {
 
   // Crouch, wall-run, and look controls (top right)
   const crouchLerpSpeed = { value: 8 };
-  const wallRunLiftAccel = { value: 12 };
-  const wallRunAlongThrust = { value: 20 };
-  const mouseSensitivity = { value: 0.002 };
-  const moveSpeed = { value: 14 };
+  const wallRunLiftAccel = { value: WALL_RUN_LIFT_ACCEL_CM_S2 }; // cm/s²
+  const wallRunAlongThrust = { value: WALL_RUN_ALONG_THRUST_CM_S2 }; // cm/s²
+  const mouseSensitivity = { value: MOUSE_SENSITIVITY * DEFAULT_LOOK_SENSITIVITY };
+  const moveSpeed = { value: MOVE_SPEED_CM_S }; // cm/s
   const airControl = { value: 0.3 }; // 0 = no control while falling, 1 = full control
   const ui = document.createElement('div');
   ui.className = 'crouch-lerp-ui';
@@ -444,24 +460,24 @@ export function initGame(container) {
       <output>8</output>
     </label>
     <label>
-      <span>Upward thrust</span>
-      <input type="range" min="0" max="30" value="12" step="1" data-binding="lift" />
-      <output>12</output>
+      <span>Upward thrust (cm/s²)</span>
+      <input type="range" min="0" max="3000" value="${WALL_RUN_LIFT_ACCEL_CM_S2}" step="100" data-binding="lift" />
+      <output>${WALL_RUN_LIFT_ACCEL_CM_S2}</output>
     </label>
     <label>
-      <span>Forward thrust</span>
-      <input type="range" min="0" max="40" value="20" step="1" data-binding="along" />
-      <output>20</output>
+      <span>Forward thrust (cm/s²)</span>
+      <input type="range" min="0" max="4000" value="${WALL_RUN_ALONG_THRUST_CM_S2}" step="100" data-binding="along" />
+      <output>${WALL_RUN_ALONG_THRUST_CM_S2}</output>
     </label>
     <label>
       <span>Look sensitivity</span>
-      <input type="range" min="0.001" max="2" value="1" step="0.0001" data-binding="sensitivity" />
-      <output>1</output>
+      <input type="range" min="0.001" max="2" value="${DEFAULT_LOOK_SENSITIVITY}" step="0.0001" data-binding="sensitivity" />
+      <output>${DEFAULT_LOOK_SENSITIVITY}</output>
     </label>
     <label>
-      <span>Move speed</span>
-      <input type="range" min="4" max="30" value="14" step="1" data-binding="move" />
-      <output>14</output>
+      <span>Move speed (cm/s)</span>
+      <input type="range" min="400" max="3000" value="${MOVE_SPEED_CM_S}" step="100" data-binding="move" />
+      <output>${MOVE_SPEED_CM_S}</output>
     </label>
     <label>
       <span>Air control</span>
@@ -532,10 +548,10 @@ export function initGame(container) {
       const v = Number(rangeInput.value);
       outputEl.textContent = binding === 'sensitivity' ? (v < 0.1 ? v.toFixed(4) : v < 1 ? v.toFixed(3) : Number(v).toFixed(2)) : rangeInput.value;
       if (binding === 'crouch') crouchLerpSpeed.value = v;
-      else if (binding === 'lift') wallRunLiftAccel.value = v;
-      else if (binding === 'along') wallRunAlongThrust.value = v;
+      else if (binding === 'lift') wallRunLiftAccel.value = Number(v);
+      else if (binding === 'along') wallRunAlongThrust.value = Number(v);
       else if (binding === 'sensitivity') mouseSensitivity.value = MOUSE_SENSITIVITY * v;
-      else if (binding === 'move') moveSpeed.value = v;
+      else if (binding === 'move') moveSpeed.value = Number(v);
       else if (binding === 'airControl') airControl.value = v;
       else if (binding === 'roomsize') {
         roomSize.value = v;
@@ -683,7 +699,7 @@ export function initGame(container) {
             const dir = new THREE.Vector3().addScaledVector(forward, moveF).addScaledVector(right, moveR);
             dir.y = 0;
             if (dir.lengthSq() > 1e-6) dir.normalize();
-            const speed = moveSpeed.value;
+            const speed = moveSpeed.value * CM; // cm/s → m/s
             playerVelocity.x = dir.x * speed;
             playerVelocity.z = dir.z * speed;
           }
@@ -706,8 +722,9 @@ export function initGame(container) {
             const dir = new THREE.Vector3().addScaledVector(forward, moveF).addScaledVector(right, moveR);
             dir.y = 0;
             if (dir.lengthSq() > 1e-6) dir.normalize();
-            const desiredX = dir.x * moveSpeed.value;
-            const desiredZ = dir.z * moveSpeed.value;
+            const moveSpeedMs = moveSpeed.value * CM; // cm/s → m/s
+            const desiredX = dir.x * moveSpeedMs;
+            const desiredZ = dir.z * moveSpeedMs;
             const t = airControl.value;
             playerVelocity.x += (desiredX - playerVelocity.x) * t;
             playerVelocity.z += (desiredZ - playerVelocity.z) * t;
@@ -730,6 +747,9 @@ export function initGame(container) {
       getWallNormalWhenTouching(playerPosition, colliders, wallNormal, undefined, wallAnchor, wallTopY, wallColliderMin, wallColliderMax);
     // Recover wall when we were surfing and lost it; also pick up a wall when we just jumped off one (so we can stick to the next)
     if (!onGround && wallNormal.lengthSq() < 0.1 && (wallRunningLastFrame || wallJumpCooldown > 0))
+      getWallNormalWhenTouching(playerPosition, colliders, wallNormal, WALL_RUN_NEAR_EPSILON, wallAnchor, wallTopY, wallColliderMin, wallColliderMax);
+    // At corners we may have resolved against one wall but be closer to the perpendicular wall; re-pick closest so we transition smoothly instead of clipping
+    if (!onGround && wallNormal.lengthSq() > 0.1)
       getWallNormalWhenTouching(playerPosition, colliders, wallNormal, WALL_RUN_NEAR_EPSILON, wallAnchor, wallTopY, wallColliderMin, wallColliderMax);
     // After wall jump, ignore re-attach only to the *same* wall; allow sticking to a different (e.g. perpendicular) wall
     if (wallJumpCooldown > 0) {
@@ -796,7 +816,7 @@ export function initGame(container) {
             if (thrustState) thrustState.applied = true;
             const surfingTime = Math.max(0, wallRunTime - WALL_RUN_MOUNT_DELAY);
             const verticalLiftMult = Math.max(0, 1 - surfingTime / WALL_RUN_VERTICAL_THRUST_DURATION);
-            playerVelocity.y += wallRunLiftAccel.value * thrustDelta * verticalLiftMult;
+            playerVelocity.y += (wallRunLiftAccel.value * CM) * thrustDelta * verticalLiftMult;
             if (wallRunTime < WALL_RUN_MOUNT_BOOST_DURATION)
               playerVelocity.y += WALL_RUN_MOUNT_LIFT_BOOST * thrustDelta;
             const forwardThrustMult = Math.max(0, 1 - surfingTime / WALL_RUN_FORWARD_THRUST_DURATION);
@@ -837,7 +857,7 @@ export function initGame(container) {
               thrustDir = new THREE.Vector3(1, 0, 0);
             }
             if (thrustDir.lengthSq() > 0.01) thrustDir.normalize();
-            playerVelocity.addScaledVector(thrustDir, wallRunAlongThrust.value * forwardThrustMult * thrustDelta);
+            playerVelocity.addScaledVector(thrustDir, (wallRunAlongThrust.value * CM) * forwardThrustMult * thrustDelta);
             wallRunTime += thrustDelta;
           }
           outN = playerVelocity.dot(wallNormal);
